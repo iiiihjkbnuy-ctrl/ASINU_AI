@@ -60,28 +60,44 @@ st.write("---")
 
 # التحقق من مفتاح الـ API
 if not GEMINI_API_KEY:
-    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود في ملف `.env`. يرجى إضافته لكي يعمل النظام بنجاح.")
+    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود. يرجى التأكد من إضافته في إعدادات المنصة (Secrets).")
 
-# تهيئة عميل Google GenAI
-client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+# تهيئة عميل Google GenAI بأمان
+client = None
+if GEMINI_API_KEY:
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        st.error(f"خطأ في تهيئة عميل الذكاء الاصطناعي: {e}")
 
-# دوال استخراج النصوص
+# دوال استخراج النصوص مع حماية ضد الأخطاء
 def extract_text_from_pdf(pdf_file):
     text = ""
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            extracted = page.extract_text()
-            if extracted:
-                text += extracted + "\n"
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            for page in pdf.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+    except Exception as e:
+        st.error(f"خطأ في قراءة ملف الـ PDF: {e}")
     return text
 
 def extract_text_from_image(image_file):
-    image = Image.open(image_file)
-    text = pytesseract.image_to_string(image, lang='ara+eng')
-    return text
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image)
+        return text
+    except Exception as e:
+        st.error(f"خطأ في معالجة الصورة: {e}")
+        return ""
 
 # دالة تحليل النص عبر نموذج Gemini
 def analyze_medical_report(raw_text):
+    if not client:
+        st.error("خدمة الذكاء الاصطناعي غير متصلة لعدم توفر المفتاح.")
+        return None
+        
     prompt = f"""
 أنت مساعد طبّي ذكي ومهني (Patient Education Tool). مهمتك هي تحليل نص تقرير التحاليل الطبية المستخرج أدناه، وتبسيطه للمريض بلغة عربية سلسة وواضحة.
 
@@ -89,7 +105,7 @@ def analyze_medical_report(raw_text):
 1. "analysis_report": نص يشرح النتائج، المصطلحات، والوصايا والترتيبات الوقائية بأسلوب تنسيق Markdown.
 2. "chart_data": مصفوفة (Array) من الكائنات، يمثل كل كائن فحصاً طبياً بالشكل التالي:
    [
-     {{"test_name": "اسم الفحص (بالإنكليزية أو العربية المختصرة)", "value": 12.5, "status": "Normal" أو "High" أو "Low", "unit": "وحدة القياس"}}
+     {{"test_name": "اسم الفحص", "value": 12.5, "status": "Normal أو High أو Low", "unit": "وحدة القياس"}}
    ]
 ملاحظة هامة: يجب أن تكون قيم "value" أرقاماً حقيقية (float/int) لغرض الرسم البياني. وإذا تعذر استخراج رقم دقيق لأحد الفحوصات، ضع القيمة 0.
 
@@ -101,7 +117,6 @@ def analyze_medical_report(raw_text):
             model='gemini-2.5-flash',
             contents=prompt,
         )
-        # تنظيف النص المستخرج للتأكد من أنه JSON خالص
         text_response = response.text.strip()
         if text_response.startswith("```json"):
             text_response = text_response[7:-3].strip()
@@ -151,7 +166,7 @@ if uploaded_file is not None:
             st.markdown("### 📋 التقرير التحليلي والتثقيفي")
             st.markdown(f"<div class='custom-card'>{res.get('analysis_report', '')}</div>", unsafe_allow_html=True)
             
-            # عرض الرسم البياني التفاعلي بـ Plotly إذا توفرت بيانات
+            # عرض الرسم البياني التفاعلي بـ Plotly
             chart_data = res.get('chart_data', [])
             if chart_data:
                 st.markdown("### 📊 لوحة المؤشرات البيانية الفورية")
@@ -163,7 +178,7 @@ if uploaded_file is not None:
                 
                 colors = []
                 for s in statuses:
-                    s_lower = s.lower()
+                    s_lower = str(s).lower()
                     if 'high' in s_lower or 'مرتفع' in s_lower:
                         colors.append('#ef4444')
                     elif 'low' in s_lower or 'منخفض' in s_lower:
