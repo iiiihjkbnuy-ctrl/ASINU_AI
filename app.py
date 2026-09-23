@@ -1,16 +1,10 @@
 import os
 import json
 import streamlit as st
-from dotenv import load_dotenv
 from google import genai
 import pdfplumber
 from PIL import Image
 import plotly.graph_objects as go
-import io
-
-# تحميل متغيرات البيئة
-load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # إعدادات صفحة Streamlit
 st.set_page_config(
@@ -58,11 +52,21 @@ st.markdown("<h1 style='text-align: center;'>🏛️ Asinu AI - نظام آسي�
 st.markdown("<p style='text-align: center; color: #94a3b8;'>دمج حكمة الطب البابلي القديم بالذكاء الاصطناعي الحديث لتحليل وتفسير التقارير الطبية</p>", unsafe_allow_html=True)
 st.write("---")
 
-# التحقق من مفتاح الـ API
-if not GEMINI_API_KEY:
-    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود. يرجى التأكد من إضافته في إعدادات المنصة (Secrets).")
+# جلب مفتاح الـ API بأمان سواء من Streamlit Secrets أو متغيرات النظام
+GEMINI_API_KEY = None
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
 
-# تهيئة عميل Google GenAI بأمان
+if not GEMINI_API_KEY:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود. يرجى التأكد من إضافته في إعدادات المنصة (Secrets في Streamlit).")
+
+# تهيئة عميل Google GenAI باستخدام المفتاح الصريح حصرياً
 client = None
 if GEMINI_API_KEY:
     try:
