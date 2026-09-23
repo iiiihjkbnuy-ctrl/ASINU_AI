@@ -1,7 +1,7 @@
 import os
 import json
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 import pdfplumber
 from PIL import Image
 import plotly.graph_objects as go
@@ -52,7 +52,7 @@ st.markdown("<h1 style='text-align: center;'>🏛️ Asinu AI - نظام آسي�
 st.markdown("<p style='text-align: center; color: #94a3b8;'>دمج حكمة الطب البابلي القديم بالذكاء الاصطناعي الحديث لتحليل وتفسير التقارير الطبية</p>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب مفتاح الـ API بأمان سواء من Streamlit Secrets أو متغيرات النظام
+# جلب مفتاح الـ API بأمان من Streamlit Secrets أو متغيرات البيئة
 GEMINI_API_KEY = None
 try:
     if "GEMINI_API_KEY" in st.secrets:
@@ -64,23 +64,16 @@ if not GEMINI_API_KEY:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود. يرجى التأكد من إضافته في إعدادات المنصة (Secrets في Streamlit).")
+    st.error("⚠️ تنبيه: مفتاح `GEMINI_API_KEY` غير موجود. يرجى إضافته في إعدادات Secrets في لوحة تحكم Streamlit.")
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-# تهيئة عميل Google GenAI باستخدام المفتاح الصريح حصرياً
-client = None
-if GEMINI_API_KEY:
+# دالة تحليل المستند عبر النموذج
+def analyze_medical_content(content_input, is_image=False):
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        st.error(f"خطأ في تهيئة عميل الذكاء الاصطناعي: {e}")
-
-# دالة تحليل المستند (سواء كان نص PDF أو صورة) مباشرة عبر Gemini
-def analyze_medical_content(content_part, is_image=False):
-    if not client:
-        st.error("خدمة الذكاء الاصطناعي غير متصلة لعدم توفر المفتاح.")
-        return None
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
-    prompt = """
+        prompt = """
 أنت مساعد طبّي ذكي ومهني (Patient Education Tool). مهمتك هي تحليل التقرير الطبي المرفق (سواء كان صورة أو نص)، وتبسيط النتائج للمريض بلغة عربية سلسة وواضحة.
 
 يجب أن تعيد النتيجة حصرياً بصيغة كائن JSON صالح (JSON Object) بدون أي نصوص أو رموز إضافية خارج الـ JSON، بحيث يحتوي على المفتاحين التاليين:
@@ -92,17 +85,10 @@ def analyze_medical_content(content_part, is_image=False):
 ملاحظة هامة: يجب أن تكون قيم "value" أرقاماً حقيقية (float/int) لغرض الرسم البياني. وإذا تعذر استخراج رقم دقيق لأحد الفحوصات، ضع القيمة 0.
 """
 
-    try:
         if is_image:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[content_part, prompt]
-            )
+            response = model.generate_content([content_input, prompt])
         else:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=f"{prompt}\n\nنص التقرير الطبي المستخرج:\n{content_part}"
-            )
+            response = model.generate_content(f"{prompt}\n\nنص التقرير الطبي المستخرج:\n{content_input}")
             
         text_response = response.text.strip()
         if text_response.startswith("```json"):
@@ -136,7 +122,7 @@ with st.sidebar:
     st.info("💡 **إبراء ذمة طبية:** هذا النظام أداة تثقيفية وتحليلية مساعدة، ولا يغني أبداً عن الاستشارة التشخيصية للطبيب المختص.")
 
 # الشاشة الرئيسية والمنطق البرمجي
-if uploaded_file is not None:
+if uploaded_file is not None and GEMINI_API_KEY:
     file_extension = uploaded_file.name.split('.')[-1].lower()
     
     if file_extension in ['jpg', 'jpeg', 'png']:
@@ -144,7 +130,7 @@ if uploaded_file is not None:
             image = Image.open(uploaded_file)
             st.image(image, caption="الصورة المرفوعة للتقرير", use_container_width=True)
             
-            if client and st.button("🚀 ابدأ التحليل الذكي للصورة", type="primary"):
+            if st.button("🚀 ابدأ التحليل الذكي للصورة", type="primary"):
                 with st.spinner("🤖 جاري تحليل الصورة مباشرة عبر نموذج Gemini الذكي..."):
                     result = analyze_medical_content(image, is_image=True)
                     if result:
@@ -162,7 +148,7 @@ if uploaded_file is not None:
             with st.expander("📄 معاينة النص الخام المستخرج من الـ PDF"):
                 st.text(raw_text)
                 
-            if client and st.button("🚀 ابدأ التحليل الذكي للتقرير", type="primary"):
+            if st.button("🚀 ابدأ التحليل الذكي للتقرير", type="primary"):
                 with st.spinner("🤖 جاري معالجة البيانات وتحليل الفحوصات عبر نموذج Gemini..."):
                     result = analyze_medical_content(raw_text, is_image=False)
                     if result:
