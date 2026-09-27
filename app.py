@@ -331,6 +331,6 @@ if uploaded_file:
 st.markdown("""
 <div class="footer-credits">
     <p><b>ASINU AI — BABYLON MEDICAL INTELLIGENCE SYSTEM</b></p>
-    <p>تم تصميم وتطوير المنظومة بالكامل بواسطة <strong>المهندس مرتضى سعد</strong></p>
+    <p>تم تصميم وتطوير المنظومة بالكامل بواسطة <strong> الطالب مرتضى سعد</strong></p>
 </div>
 """, unsafe_allow_html=True)
