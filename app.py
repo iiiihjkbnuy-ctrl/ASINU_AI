@@ -176,7 +176,7 @@ st.markdown("""
 <div class="babylon-header">
     <div class="cuneiform-symbol">🏛️ 𒀭 𒀀 𒋛 𒉡</div>
     <h1>ASINU AI — نظام أسينو الطبي البابلي</h1>
-    <div class="engineer-badge">👑 تم تطويره بواسطة المهندس مرتضى سعد</div>
+    <div class="engineer-badge"> تم تطويره بواسطة الطالب مرتضى سعد</div>
 </div>
 """, unsafe_allow_html=True)
 
